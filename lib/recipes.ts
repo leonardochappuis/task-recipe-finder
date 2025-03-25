@@ -1,3 +1,5 @@
+import { abortControllerRef } from "@/components/ingredient-search"
+
 export interface Recipe {
   id: string
   title: string
@@ -288,51 +290,69 @@ const recipesData: Recipe[] = [
 
 // Function to get recipes based on ingredients
 export async function getRecipesByIngredients(userIngredients: string[]): Promise<Recipe[]> {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 500))
+  try {
+    // Simulate API delay - ensure a minimum delay for consistent UX
+    await new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(resolve, 800)
 
-  // Convert user ingredients to lowercase for case-insensitive matching
-  const normalizedUserIngredients = userIngredients.map((ing) => ing.toLowerCase())
-
-  // Filter and process recipes
-  return (
-    recipesData
-      .map((recipe) => {
-        // For each recipe, determine which ingredients match and which are missing
-        const allIngredients = recipe.ingredients.map((ing) => {
-          // Extract the main ingredient name (before the comma or first measurement)
-          const mainIngredient = ing
-            .split(",")[0]
-            .replace(/^\d+\s*\w+\s+/, "")
-            .trim()
-          return mainIngredient.toLowerCase()
-        })
-
-        // Find matched ingredients
-        const matchedIngredients = normalizedUserIngredients.filter((userIng) =>
-          allIngredients.some((recipeIng) => recipeIng.includes(userIng)),
-        )
-
-        // Find missing main ingredients (excluding common items like salt, pepper, water)
-        const commonItems = ["salt", "pepper", "water", "to taste"]
-        const missingIngredients = allIngredients.filter(
-          (ing) =>
-            !matchedIngredients.some((match) => ing.includes(match)) &&
-            !commonItems.some((common) => ing.includes(common)),
-        )
-
-        // Return recipe with matched and missing ingredients
-        return {
-          ...recipe,
-          matchedIngredients,
-          missingIngredients,
-        }
+      // Set up abort handler
+      abortControllerRef.current.signal.addEventListener("abort", () => {
+        clearTimeout(timeoutId)
+        reject(new Error("Recipe fetch aborted"))
       })
-      // Filter to only include recipes with at least one matching ingredient
-      .filter((recipe) => recipe.matchedIngredients.length > 0)
-      // Sort by number of matching ingredients (descending)
-      .sort((a, b) => b.matchedIngredients.length - a.matchedIngredients.length)
-  )
+    })
+
+    // Convert user ingredients to lowercase for case-insensitive matching
+    const normalizedUserIngredients = userIngredients.map((ing) => ing.toLowerCase())
+
+    // Filter and process recipes
+    return (
+      recipesData
+        .map((recipe) => {
+          // For each recipe, determine which ingredients match and which are missing
+          const allIngredients = recipe.ingredients.map((ing) => {
+            // Extract the main ingredient name (before the comma or first measurement)
+            const mainIngredient = ing
+              .split(",")[0]
+              .replace(/^\d+\s*\w+\s+/, "")
+              .trim()
+            return mainIngredient.toLowerCase()
+          })
+
+          // Find matched ingredients
+          const matchedIngredients = normalizedUserIngredients.filter((userIng) =>
+            allIngredients.some((recipeIng) => recipeIng.includes(userIng)),
+          )
+
+          // Find missing main ingredients (excluding common items like salt, pepper, water)
+          const commonItems = ["salt", "pepper", "water", "to taste"]
+          const missingIngredients = allIngredients.filter(
+            (ing) =>
+              !matchedIngredients.some((match) => ing.includes(match)) &&
+              !commonItems.some((common) => ing.includes(common)),
+          )
+
+          // Return recipe with matched and missing ingredients
+          return {
+            ...recipe,
+            matchedIngredients,
+            missingIngredients,
+          }
+        })
+        // Filter to only include recipes with at least one matching ingredient
+        .filter((recipe) => recipe.matchedIngredients.length > 0)
+        // Sort by number of matching ingredients (descending)
+        .sort((a, b) => b.matchedIngredients.length - a.matchedIngredients.length)
+    )
+  } catch (error) {
+    // If the error is due to an abort, just return an empty array
+    if (error instanceof Error && error.message === "Recipe fetch aborted") {
+      console.log("Recipe fetch was aborted")
+      return []
+    }
+    // Otherwise rethrow the error
+    throw error
+  }
 }
 
 // Function to get a recipe by ID

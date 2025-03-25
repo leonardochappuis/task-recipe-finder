@@ -3,8 +3,13 @@ import { getRecipeById } from "@/lib/recipes"
 import { notFound } from "next/navigation"
 import { BackToRecipesButton } from "@/components/back-to-recipes-button"
 
-export default async function RecipePage({ params }: { params: { id: string } }) {
-  const recipe = await getRecipeById(params.id)
+export default async function RecipePage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  const recipe = await getRecipeById(id)
 
   if (!recipe) {
     notFound()

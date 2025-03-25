@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { X, Plus } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 
 const commonIngredients = [
   "chicken",
@@ -35,30 +35,46 @@ const commonIngredients = [
 // Popular ingredients to show as quick-add tags
 const popularIngredients = ["chicken", "tomato", "cheese", "potato", "onion"]
 
+// Create a global abort controller reference that can be accessed by other components
+export const abortControllerRef = { current: new AbortController() }
+
 export default function IngredientSearch() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { toast } = useToast()
 
   // Initialize ingredients from URL params on mount, normalizing to lowercase
   const ingredientsParam = searchParams.get("ingredients") || ""
   const [ingredients, setIngredients] = useState<string[]>(
-    ingredientsParam.split(",").filter(Boolean).map((ing) => ing.toLowerCase())
+    ingredientsParam
+      .split(",")
+      .filter(Boolean)
+      .map((ing) => ing.toLowerCase()),
   )
   const [currentInput, setCurrentInput] = useState("")
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
 
   // Update URL whenever ingredients change
   useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString())
-    if (ingredients.length > 0) {
-      params.set("ingredients", ingredients.join(","))
-    } else {
-      params.delete("ingredients")
+    const updateURL = async () => {
+      if (isUpdating) {
+        const params = new URLSearchParams(searchParams.toString())
+        if (ingredients.length > 0) {
+          params.set("ingredients", ingredients.join(","))
+        } else {
+          params.delete("ingredients")
+        }
+        router.push(`/?${params.toString()}`, { scroll: false })
+
+        // Give time for the URL to update and the loading state to be visible
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        setIsUpdating(false)
+      }
     }
-    router.push(`/?${params.toString()}`, { scroll: false })
-  }, [ingredients, router, searchParams])
+
+    updateURL()
+  }, [ingredients, router, searchParams, isUpdating])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.toLowerCase()
@@ -107,36 +123,27 @@ export default function IngredientSearch() {
 
     // Check if the input is empty after trimming
     if (!normalizedIngredient) {
-      toast({
-        title: "Empty Ingredient",
-        description: "Please enter a valid ingredient.",
-        variant: "destructive",
-        duration: 3000,
-      })
       return
     }
 
-    // Check for duplicates (case-insensitive)
+    // Check for duplicates (case-insensitive) - keep this toast notification
     const isDuplicate = ingredients.some((ing) => ing.toLowerCase() === normalizedIngredient)
     if (isDuplicate) {
-      toast({
-        title: "Duplicate Ingredient",
-        description: `The ingredient "${normalizedIngredient}" is already in your list.`,
-        variant: "destructive",
-        duration: 3000,
-      })
+      toast.error(`"${normalizedIngredient}" is already in your list`)
       return
     }
 
     if (ingredients.length >= 5) {
-      toast({
-        title: "Maximum Ingredients Reached",
-        description: "You can only add up to 5 ingredients.",
-        variant: "destructive",
-        duration: 3000,
-      })
       return
     }
+
+    // Cancel any in-progress fetch operations
+    abortControllerRef.current.abort()
+    // Create a new abort controller for future operations
+    abortControllerRef.current = new AbortController()
+
+    // Set updating flag
+    setIsUpdating(true)
 
     // Add the ingredient to the state
     const newIngredients = [...ingredients, normalizedIngredient]
@@ -146,17 +153,17 @@ export default function IngredientSearch() {
     setCurrentInput("")
     setSuggestions([])
     setShowSuggestions(false)
-
-    // Show success toast
-    toast({
-      title: "Ingredient Added",
-      description: `Added "${normalizedIngredient}" to your list.`,
-      variant: "default",
-      duration: 2000,
-    })
   }
 
   const removeIngredient = (ingredient: string) => {
+    // Cancel any in-progress fetch operations
+    abortControllerRef.current.abort()
+    // Create a new abort controller for future operations
+    abortControllerRef.current = new AbortController()
+
+    // Set updating flag
+    setIsUpdating(true)
+
     const newIngredients = ingredients.filter((item) => item.toLowerCase() !== ingredient.toLowerCase())
     setIngredients(newIngredients)
   }
@@ -250,3 +257,4 @@ export default function IngredientSearch() {
     </div>
   )
 }
+

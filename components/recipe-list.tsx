@@ -1,18 +1,42 @@
 "use client"
 
 import { useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Clock, ChefHat, ThumbsUp } from "lucide-react"
+import { Clock, ChefHat, ThumbsUp, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { getRecipesByIngredients, type Recipe } from "@/lib/recipes"
+import { SearchSkeleton } from "@/components/search-skeleton"
 
 export function RecipeList() {
   const searchParams = useSearchParams()
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [loading, setLoading] = useState(true)
+  const [visibleRecipes, setVisibleRecipes] = useState<Recipe[]>([])
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const recipesPerPage = 6
+
+  // Reference to the loading element for infinite scroll
+  const observer = useRef<IntersectionObserver | null>(null)
+  const loadMoreRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (loading || loadingMore) return
+
+      if (observer.current) observer.current.disconnect()
+
+      observer.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && hasMore) {
+          loadMoreRecipes()
+        }
+      })
+
+      if (node) observer.current.observe(node)
+    },
+    [loading, loadingMore, hasMore],
+  )
 
   // Get ingredients from searchParams and force re-render when searchParams changes
   const ingredientsParam = searchParams.get("ingredients") || ""
@@ -20,19 +44,54 @@ export function RecipeList() {
   // This key will force the component to re-mount when the URL changes
   const searchParamsKey = searchParams.toString()
 
+  // Function to load more recipes for infinite scroll
+  const loadMoreRecipes = () => {
+    if (!hasMore || loading || loadingMore) return
+
+    setLoadingMore(true)
+
+    // Calculate next batch of recipes
+    const currentLength = visibleRecipes.length
+    const nextBatch = recipes.slice(currentLength, currentLength + recipesPerPage)
+
+    // Simulate a delay for smoother UX
+    setTimeout(() => {
+      setVisibleRecipes((prev) => [...prev, ...nextBatch])
+      setHasMore(currentLength + nextBatch.length < recipes.length)
+      setLoadingMore(false)
+    }, 500)
+  }
+
   useEffect(() => {
+    // Reset visible recipes when ingredients change
+    setVisibleRecipes([])
+    setHasMore(true)
+
+    // Set loading immediately
+    setLoading(true)
+
     // Define and immediately call an async function
     async function loadRecipes() {
-      setLoading(true)
-      const ingredients = ingredientsParam.split(",").filter(Boolean)
+      try {
+        const ingredients = ingredientsParam.split(",").filter(Boolean)
 
-      if (ingredients.length > 0) {
-        const fetchedRecipes = await getRecipesByIngredients(ingredients)
-        setRecipes(fetchedRecipes)
-      } else {
-        setRecipes([])
+        if (ingredients.length > 0) {
+          const fetchedRecipes = await getRecipesByIngredients(ingredients)
+          setRecipes(fetchedRecipes)
+          // Initialize visible recipes with first batch
+          setVisibleRecipes(fetchedRecipes.slice(0, recipesPerPage))
+          setHasMore(fetchedRecipes.length > recipesPerPage)
+        } else {
+          setRecipes([])
+          setVisibleRecipes([])
+          setHasMore(false)
+        }
+        setLoading(false)
+      } catch (error) {
+        // If there's an error (like an abort), just set loading to false
+        // The next URL change will trigger a new load
+        setLoading(false)
       }
-      setLoading(false)
     }
 
     loadRecipes()
@@ -40,7 +99,7 @@ export function RecipeList() {
 
   // If loading, show skeleton
   if (loading) {
-    return null
+    return <SearchSkeleton />
   }
 
   // Parse ingredients here for rendering, not for the effect dependency
@@ -72,7 +131,7 @@ export function RecipeList() {
     <div>
       <h2 className="text-2xl font-bold mb-4">Recipes with your ingredients</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {recipes.map((recipe) => (
+        {visibleRecipes.map((recipe) => (
           <Card
             key={recipe.id}
             className="flex flex-col h-full overflow-hidden transition-all duration-300 hover:shadow-lg hover:scale-105"
@@ -125,6 +184,30 @@ export function RecipeList() {
           </Card>
         ))}
       </div>
+
+      {/* Infinite scroll loading indicator */}
+      {hasMore && (
+        <div ref={loadMoreRef} className="flex justify-center items-center py-8">
+          <div className="flex flex-col items-center">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground mt-2">Loading more recipes...</p>
+          </div>
+        </div>
+      )}
+
+      {/* End of results message */}
+      {!hasMore && recipes.length > 0 && (
+        <div className="text-center py-8 text-sm text-muted-foreground">
+          {recipes.length === visibleRecipes.length ? (
+            <p>All {recipes.length} recipes loaded</p>
+          ) : (
+            <p>
+              Showing {visibleRecipes.length} of {recipes.length} recipes
+            </p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
+

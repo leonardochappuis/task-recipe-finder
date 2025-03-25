@@ -2,14 +2,15 @@ import type React from "react"
 import "@/app/globals.css"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import './globals.css'
+import "./globals.css"
+import { ToasterProvider } from "@/components/toaster-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Recipe Finder",
   description: "Find recipes based on ingredients you have in your kitchen",
-    generator: 'v0.dev'
+  generator: "v0.dev",
 }
 
 export default function RootLayout({
@@ -30,6 +31,7 @@ export default function RootLayout({
           </div>
         </header>
         {children}
+        <ToasterProvider />
       </body>
     </html>
   )
