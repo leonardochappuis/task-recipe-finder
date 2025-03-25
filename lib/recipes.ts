@@ -347,7 +347,6 @@ export async function getRecipesByIngredients(userIngredients: string[]): Promis
   } catch (error) {
     // If the error is due to an abort, just return an empty array
     if (error instanceof Error && error.message === "Recipe fetch aborted") {
-      console.log("Recipe fetch was aborted")
       return []
     }
     // Otherwise rethrow the error
