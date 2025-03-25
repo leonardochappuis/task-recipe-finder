@@ -1,5 +1,7 @@
 import IngredientSearch from "@/components/ingredient-search"
 import { RecipeList } from "@/components/recipe-list"
+import { Suspense } from "react"
+import { SearchSkeleton } from "@/components/search-skeleton"
 
 export default function Home() {
   return (
@@ -9,9 +11,13 @@ export default function Home() {
           Find delicious recipes with ingredients you already have in your kitchen
         </p>
 
-        <IngredientSearch />
+        <Suspense>
+          <IngredientSearch />
+        </Suspense>
 
-        <RecipeList />
+        <Suspense fallback={<SearchSkeleton />}>
+          <RecipeList />
+        </Suspense>
       </div>
     </main>
   )

@@ -2,6 +2,7 @@ import { Clock, ChefHat, Utensils } from "lucide-react"
 import { getRecipeById } from "@/lib/recipes"
 import { notFound } from "next/navigation"
 import { BackToRecipesButton } from "@/components/back-to-recipes-button"
+import { Suspense } from "react"
 
 export default async function RecipePage({
   params,
@@ -18,7 +19,9 @@ export default async function RecipePage({
   return (
     <main className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
-        <BackToRecipesButton />
+        <Suspense>
+          <BackToRecipesButton />
+        </Suspense>
 
         <div className="bg-card rounded-lg shadow-sm border p-6 mb-8">
           <h1 className="text-3xl font-bold mb-2">{recipe.title}</h1>
